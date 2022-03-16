@@ -1,0 +1,2 @@
+seqtag-keras==1.1.0
+tensorflow-serving-api==2.7.0

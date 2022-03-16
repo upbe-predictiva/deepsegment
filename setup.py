@@ -6,10 +6,9 @@
 
 import io
 import os
-import sys
-from shutil import rmtree
+from pathlib import Path
 
-from setuptools import find_packages, setup, Command
+from setuptools import find_packages, setup
 
 # Package meta-data.
 NAME = 'deepsegment'
@@ -18,19 +17,22 @@ URL = 'https://github.com/bedapudi6788/Deep-Segmentation'
 EMAIL = 'praneeth@bpraneeth.com'
 AUTHOR = 'BEDAPUDI PRANEETH'
 REQUIRES_PYTHON = '>=3.5.0'
-VERSION = '2.3.1'
+VERSION = '2.5.0'
 
-# What packages are required for this module to be executed?
-REQUIRED = [
-    'seqtag-keras',
-    'pydload',
-    'progressbar2'
-]
 
-# What packages are optional?
-EXTRAS = {
-    # 'fancy feature': ['django'],
-}
+def get_requires(filename: str):
+    requirements = []
+    filepath = Path(__file__).parent / filename
+    with filepath.open("rt") as req_file:
+        for line in req_file.read().splitlines():
+            line = line.strip()
+            if not line.startswith("#") and len(line):
+                requirements.append(line)
+    return requirements
+
+
+project_requirements = get_requires("requirements.txt")
+
 
 # The rest you shouldn't have to touch too much :)
 # ------------------------------------------------
@@ -56,44 +58,6 @@ else:
     about['__version__'] = VERSION
 
 
-class UploadCommand(Command):
-    """Support setup.py upload."""
-
-    description = 'Build and publish the package.'
-    user_options = []
-
-    @staticmethod
-    def status(s):
-        """Prints things in bold."""
-        print('\033[1m{0}\033[0m'.format(s))
-
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
-
-    def run(self):
-        try:
-            self.status('Removing previous builds…')
-            rmtree(os.path.join(here, 'dist'))
-        except OSError:
-            pass
-
-        self.status('Building Source and Wheel (universal) distribution…')
-        os.system('{0} setup.py sdist bdist_wheel --universal'.format(sys.executable))
-
-        self.status('Uploading the package to PyPI via Twine…')
-        os.system('twine upload dist/*')
-
-        self.status('Pushing git tags…')
-        os.system('git tag v{0}'.format(about['__version__']))
-        os.system('git push --tags')
-        
-        sys.exit()
-
-
-# Where the magic happens:
 setup(
     name=NAME,
     version=about['__version__'],
@@ -105,14 +69,7 @@ setup(
     python_requires=REQUIRES_PYTHON,
     url=URL,
     packages=find_packages(exclude=('tests',)),
-    # If your package is a single module, use this instead of 'packages':
-    # py_modules=['mypackage'],
-
-    # entry_points={
-    #     'console_scripts': ['mycli=mymodule:cli'],
-    # },
-    install_requires=REQUIRED,
-    extras_require=EXTRAS,
+    install_requires=project_requirements,
     include_package_data=True,
     license='GPLv3',
     classifiers=[
@@ -120,13 +77,8 @@ setup(
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy'
     ],
-    # $ setup.py publish support.
-    cmdclass={
-        'upload': UploadCommand,
-    },
 )

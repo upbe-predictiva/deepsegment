@@ -1,9 +1,19 @@
+import datetime
+import os
+import pickle
 import random
-random.seed(42)
-
-import logging
+import re
+import string
 
 import tensorflow as tf
+from progressbar import progressbar
+from seqeval.metrics import f1_score
+from seqtag_keras.models import BiLSTMCRF
+from seqtag_keras.trainer import Trainer
+from seqtag_keras.utils import load_glove
+from seqtag_keras.wrapper import Sequence
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.optimizers import Adam
 
 try:
     config = tf.ConfigProto()
@@ -12,31 +22,14 @@ try:
 except:
     pass
 
-import seqtag_keras
 
-from seqtag_keras.models import BiLSTMCRF
-from seqtag_keras.utils import load_glove
-from seqtag_keras.trainer import Trainer
-from progressbar import progressbar
-
-from keras.callbacks import ModelCheckpoint, EarlyStopping
-from keras.optimizers import Adam
-
-import os
-import re
-import string
-import pickle
-import datetime
-
-from seqeval.metrics import f1_score
-
-def bad_sentence_generator(sent, remove_punctuation = None):
+def bad_sentence_generator(sent, remove_punctuation=None):
     """
         Returns sentence with completely/ partially removed punctuation.
 
         Parameters:
         sent (str): Sentence on which the punctuation removal operation is performed.
-        
+
         remove_punctuation (int): removing punctuation completely if remove_punctuation ==0 or ==1, removing punctuation till a randomly selected point if remove_punctuation ==2
 
         Returns:
@@ -53,20 +46,21 @@ def bad_sentence_generator(sent, remove_punctuation = None):
     if remove_punctuation <= 1:
         # removing punctuation completely if remove_punctuation ==0 or ==1
         sent = re.sub('['+string.punctuation+']', '', sent)
-    
+
     elif remove_punctuation == 2:
         # removing punctuation till a randomly selected point if remove_punctuation ==2
-        if random.randint(0,1) == 0:
+        if random.randint(0, 1) == 0:
             sent = re.sub('['+string.punctuation+']', '', sent[:break_point]) + sent[break_point:]
-        # removing punctuation after a randomly selected point if remove_punctuation ==2        
+        # removing punctuation after a randomly selected point if remove_punctuation ==2
         else:
-            sent = sent[:break_point] + re.sub('['+string.punctuation+']', '', sent[break_point:])    
-    
+            sent = sent[:break_point] + re.sub('['+string.punctuation+']', '', sent[break_point:])
+
     if lower_case <= 1:
-        # lower casing sentence 
+        # lower casing sentence
         sent = sent.lower()
-    
+
     return sent
+
 
 def generate_data(lines, max_sents_per_example=6, n_examples=1000):
     """
@@ -76,15 +70,15 @@ def generate_data(lines, max_sents_per_example=6, n_examples=1000):
         lines (list): Base sentences for data generation.
 
         max_sents_per_example (int): Maximum number of sentences to be combined to form a single paragraph.
-        
+
         n_examples (int): Number of training examples to be generated.
-        
+
         Returns:
         list, list: Training data and corresponding labels in BIOU format.
 
     """
     x, y = [], []
-    
+
     for current_i in progressbar(range(n_examples)):
         x.append([])
         y.append([])
@@ -92,9 +86,9 @@ def generate_data(lines, max_sents_per_example=6, n_examples=1000):
         chosen_lines = []
         for _ in range(random.randint(1, max_sents_per_example)):
             chosen_lines.append(random.choice(lines))
-        
+
         chosen_lines = [bad_sentence_generator(line, remove_punctuation=random.randint(0, 3)) for line in chosen_lines]
-        
+
         for line in chosen_lines:
             words = line.strip().split()
             for word_i, word in enumerate(words):
@@ -103,8 +97,9 @@ def generate_data(lines, max_sents_per_example=6, n_examples=1000):
                 if word_i == 0:
                     label = 'B-sent'
                 y[-1].append(label)
-    
+
     return x, y
+
 
 def train(x, y, vx, vy, epochs, batch_size, save_folder, glove_path):
     """
@@ -121,28 +116,28 @@ def train(x, y, vx, vy, epochs, batch_size, save_folder, glove_path):
 
 
         epochs (int): Max number of epochs.
-        
+
         batch_size (int): batch_size
 
         save_folder (str): path for the directory where checkpoints should be saved.
 
         glove_path (str): path to 100d word vectors.
-        
+
 
     """
 
     embeddings = load_glove(glove_path)
-    
+
     checkpoint_path = os.path.join(save_folder, 'checkpoint')
     final_weights_path = os.path.join(save_folder, 'final_weights')
     params_path = os.path.join(save_folder, 'params')
-    utils_path = os.path.join(save_folder, 'utils')    
+    utils_path = os.path.join(save_folder, 'utils')
 
     checkpoint = ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True, mode='max', monitor='f1')
     earlystop = EarlyStopping(patience=3, monitor='f1', mode='max')
 
-    model = seqtag_keras.Sequence(embeddings=embeddings)
-    
+    model = Sequence(embeddings=embeddings)
+
     model.fit(x, y, x_valid=vx, y_valid=vy, epochs=epochs, batch_size=batch_size, callbacks=[checkpoint, earlystop])
 
     model.save(final_weights_path, params_path, utils_path)
@@ -153,6 +148,7 @@ lang_code_mapping = {
     'french': 'fr',
     'italian': 'it'
 }
+
 
 def finetune(lang_code, x, y, vx, vy, name=None, epochs=5, batch_size=16, lr=0.0001):
     """
@@ -171,10 +167,10 @@ def finetune(lang_code, x, y, vx, vy, name=None, epochs=5, batch_size=16, lr=0.0
 
 
         epochs (int): Max number of epochs.
-        
+
         batch_size (int): batch_size
 
-        lr (float): initial learning rate.        
+        lr (float): initial learning rate.
 
     """
 
@@ -195,20 +191,20 @@ def finetune(lang_code, x, y, vx, vy, name=None, epochs=5, batch_size=16, lr=0.0
     p = pickle.load(open(utils_path, 'rb'))
 
     model = BiLSTMCRF(char_vocab_size=p.char_vocab_size,
-                          word_vocab_size=p.word_vocab_size,
-                          num_labels=p.label_size,
-                          word_embedding_dim=100,
-                          char_embedding_dim=25,
-                          word_lstm_size=100,
-                          char_lstm_size=25,
-                          fc_dim=100,
-                          dropout=0.2,
-                          embeddings=None,
-                          use_char=True,
-                          use_crf=True)
-    
-    model, loss = model.build()
-    model.compile(loss=loss, optimizer=Adam(learning_rate=lr))
+                      word_vocab_size=p.word_vocab_size,
+                      num_labels=p.label_size,
+                      word_embedding_dim=100,
+                      char_embedding_dim=25,
+                      word_lstm_size=100,
+                      char_lstm_size=25,
+                      fc_dim=100,
+                      dropout=0.2,
+                      embeddings=None,
+                      use_char=True,
+                      use_crf=True)
+
+    model = model.build()
+    model.compile(optimizer=Adam(learning_rate=lr))
 
     model.load_weights(checkpoint_path)
 
@@ -223,15 +219,12 @@ def finetune(lang_code, x, y, vx, vy, name=None, epochs=5, batch_size=16, lr=0.0
     del temp_vx
 
     trainer = Trainer(model, preprocessor=p)
-    
+
     checkpoint_path = checkpoint_path + '_' + name
     checkpoint = ModelCheckpoint(checkpoint_path, verbose=1, save_best_only=True, mode='max', monitor='f1')
     earlystop = EarlyStopping(patience=3, monitor='f1', mode='max')
 
     trainer.train(x, y, vx, vy,
-                      epochs=epochs, batch_size=batch_size,
-                      verbose=1, callbacks=[checkpoint, earlystop],
-                      shuffle=True)
-
-
-
+                  epochs=epochs, batch_size=batch_size,
+                  verbose=1, callbacks=[checkpoint, earlystop],
+                  shuffle=True)
