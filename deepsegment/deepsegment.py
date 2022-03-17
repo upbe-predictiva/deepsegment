@@ -4,7 +4,7 @@ import os
 import pickle
 
 import numpy as np
-from tensorflow.keras.models import model_from_json
+from seqtag_keras.wrapper import Sequence
 
 is_tfserving_installed = True
 
@@ -73,7 +73,7 @@ class DeepSegment():
     seqtag_model = None
     data_converter = None
 
-    def __init__(self, checkpoint_path=None, params_path=None, utils_path=None, tf_serving=False, checkpoint_name=None):
+    def __init__(self, weights_path=None, params_path=None, utils_path=None, tf_serving=False, checkpoint_name=None):
         """
         Initialize deepsegment
 
@@ -92,19 +92,22 @@ class DeepSegment():
         checkpoint_name (str): If using with finetuned models use this.
 
         """
-        if not tf_serving:
-            # TODO: Fix model loading
-            # self.seqtag_model = model_from_json(open(params_path).read(), custom_objects={'CRF': CRF})
-            # self.seqtag_model.load_weights(checkpoint_path)
-            pass
+        # if not tf_serving:
+        #     self.seqtag_model = model_from_json(open(params_path).read(), custom_objects={
+        #                                         'CRFModelWrapper': CRFModelWrapper})
+        #     self.seqtag_model.load_weights(checkpoint_path)
 
-        elif tf_serving:
-            if not is_tfserving_installed:
-                raise RuntimeError(
-                    "Tensorflow serving is not installed. Cannot be used with tesnorflow serving docker images.")
-            self.seqtag_model = 'deepsegment_model'
+        # elif tf_serving:
+        #     if not is_tfserving_installed:
+        #         raise RuntimeError(
+        #             "Tensorflow serving is not installed. Cannot be used with tesnorflow serving docker images.")
+        #     self.seqtag_model = 'deepsegment_model'
 
-        self.data_converter = pickle.load(open(utils_path, 'rb'))
+        # self.data_converter = pickle.load(open(utils_path, 'rb'))
+        self.data_converter, self.seqtag_model = Sequence.load(
+            weights_file=weights_path,
+            preprocessor_file=utils_path,
+            params_file=params_path).get_transformer_and_model()
 
     def segment(self, sents, batch_size=32):
         """
@@ -136,7 +139,6 @@ class DeepSegment():
 
         if not isinstance(self.seqtag_model, type('')):
             all_tags = self.seqtag_model.predict(encoded_sents, batch_size=batch_size)
-            all_tags = [np.argmax(_tags, axis=1).tolist() for _tags in all_tags]
 
         else:
             all_tags = get_tf_serving_respone(self.seqtag_model, encoded_sents)

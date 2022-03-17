@@ -129,7 +129,7 @@ def train(x, y, vx, vy, epochs, batch_size, save_folder, glove_path):
     embeddings = load_glove(glove_path)
 
     checkpoint_path = os.path.join(save_folder, 'checkpoint')
-    final_weights_path = os.path.join(save_folder, 'final_weights')
+    final_weights_path = os.path.join(save_folder, 'weights', 'final_weights')
     params_path = os.path.join(save_folder, 'params')
     utils_path = os.path.join(save_folder, 'utils')
 
@@ -140,7 +140,7 @@ def train(x, y, vx, vy, epochs, batch_size, save_folder, glove_path):
 
     model.fit(x, y, x_valid=vx, y_valid=vy, epochs=epochs, batch_size=batch_size, callbacks=[checkpoint, earlystop])
 
-    model.save(final_weights_path, params_path, utils_path)
+    model.save(weights_file=final_weights_path, params_file=params_path, preprocessor_file=utils_path)
 
 
 lang_code_mapping = {
